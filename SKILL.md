@@ -68,6 +68,7 @@ If target IDs are not explicitly confirmed, stop at dry-run.
   - Language follows `analysis.lang` when provided (`ja`/`en`), otherwise CLI default `--lang` (default: `ja`).
 - `analysis_tags`: extra tags to merge into `tags`.
 - `tags_merge` (default `true`): merge with existing Calibre tags instead of replacing.
+- `tags_remove`: remove specific tags by exact match (applied after merge).
 
 ## Usage
 

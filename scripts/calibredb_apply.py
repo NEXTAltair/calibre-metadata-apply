@@ -196,17 +196,20 @@ def build_fields(ns: argparse.Namespace, rec: dict[str, Any]) -> list[tuple[str,
         r["comments"] = merged
 
     # tags merge/normalize (multi-tag support)
-    if r.get("tags") is not None or r.get("analysis_tags") is not None:
+    if r.get("tags") is not None or r.get("analysis_tags") is not None or r.get("tags_remove") is not None:
         incoming = split_multi(r.get("tags"))
         extra = split_multi(r.get("analysis_tags"))
+        remove_tags = set(split_multi(r.get("tags_remove")))
         merge_existing = bool(r.get("tags_merge", True))
         existing_tags: list[str] = []
         if merge_existing:
             current = fetch_book(ns, bid, "id,tags") or {}
             existing_tags = split_multi(current.get("tags", []))
         merged = split_multi(existing_tags + incoming + extra)
-        if merged:
-            r["tags"] = merged
+        if remove_tags:
+            merged = [t for t in merged if t not in remove_tags]
+        # set even when empty to allow explicit tag clearing by removal
+        r["tags"] = merged
 
     fields: list[tuple[str, str]] = []
     for k, v in r.items():
