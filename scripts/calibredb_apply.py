@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -13,10 +15,49 @@ ALLOWED = {
     "title", "authors", "series", "series_index", "tags", "publisher", "pubdate", "languages", "comments"
 }
 
+OC_START = "<!-- OC_ANALYSIS_START -->"
+OC_END = "<!-- OC_ANALYSIS_END -->"
+
+I18N = {
+    "ja": {
+        "title": "OpenClaw解析",
+        "summary": "要約",
+        "key_points": "重要ポイント",
+        "reread": "再読ガイド",
+        "generated_at": "生成日時",
+        "file_hash": "ファイルハッシュ",
+        "analysis_tags": "解析タグ",
+        "section": "章/節",
+        "page": "ページ",
+        "chunk": "チャンク"
+    },
+    "en": {
+        "title": "OpenClaw Analysis",
+        "summary": "Summary",
+        "key_points": "Key points",
+        "reread": "Reread guide",
+        "generated_at": "generated_at",
+        "file_hash": "file_hash",
+        "analysis_tags": "analysis_tags",
+        "section": "section",
+        "page": "page",
+        "chunk": "chunk"
+    }
+}
+
 
 def run(cmd: list[str]) -> tuple[int, str, str]:
     cp = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     return cp.returncode, cp.stdout, cp.stderr
+
+
+def run_ok(cmd: list[str]) -> str:
+    rc, out, err = run(cmd)
+    if rc != 0:
+        raise RuntimeError(
+            f"calibredb failed ({rc})\nCMD: {' '.join(shlex.quote(x) for x in cmd)}\nERR:\n{err.strip()}"
+        )
+    return out
 
 
 def common_args(ns: argparse.Namespace) -> list[str]:
@@ -36,25 +77,162 @@ def to_field_value(v: Any) -> str:
     return str(v)
 
 
-def build_set_metadata_cmd(ns: argparse.Namespace, rec: dict[str, Any]) -> list[str]:
-    bid = str(rec.get("id", "")).strip()
+def split_multi(v: Any) -> list[str]:
+    if v is None:
+        return []
+    if isinstance(v, list):
+        raw = [str(x) for x in v]
+    else:
+        raw = re.split(r"[,;\n]", str(v))
+    out: list[str] = []
+    seen = set()
+    for x in raw:
+        t = x.strip()
+        if not t:
+            continue
+        k = t.casefold()
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(t)
+    return out
+
+
+def fetch_book(ns: argparse.Namespace, book_id: str, fields: str) -> dict[str, Any] | None:
+    cmd = [
+        "calibredb", "list", "--for-machine", "--fields", fields,
+        "--search", f"id:{book_id}", "--limit", "5",
+    ] + common_args(ns)
+    out = run_ok(cmd)
+    rows = json.loads(out)
+    for row in rows:
+        if str(row.get("id")) == str(book_id):
+            return row
+    return None
+
+
+def render_analysis_html(book_id: str, analysis: dict[str, Any], default_lang: str = "ja") -> str:
+    summary = str(analysis.get("summary", "")).strip()
+    highlights = split_multi(analysis.get("highlights", []))
+    tags = split_multi(analysis.get("tags", []))
+    reread = analysis.get("reread", [])
+    generated_at = str(analysis.get("generated_at", "")).strip() or dt.datetime.now(dt.timezone.utc).isoformat()
+    source_hash = str(analysis.get("file_hash", "")).strip()
+
+    lang = str(analysis.get("lang", default_lang)).strip().lower()
+    if lang not in I18N:
+        lang = default_lang if default_lang in I18N else "en"
+    tr = I18N[lang]
+
+    lines: list[str] = []
+    lines.append(OC_START)
+    lines.append('<div class="openclaw-analysis">')
+    lines.append(f"<h3>{tr["title"]}</h3>")
+
+    if summary:
+        lines.append(f"<p><strong>{tr["summary"]}:</strong> {summary}</p>")
+
+    if highlights:
+        lines.append(f"<h4>{tr["key_points"]}</h4><ul>")
+        for h in highlights:
+            lines.append(f"<li>{h}</li>")
+        lines.append("</ul>")
+
+    if reread and isinstance(reread, list):
+        lines.append(f"<h4>{tr["reread"]}</h4><ul>")
+        for item in reread:
+            if not isinstance(item, dict):
+                continue
+            section = str(item.get("section", "")).strip()
+            page = str(item.get("page", "")).strip()
+            chunk = str(item.get("chunk_id", "")).strip()
+            reason = str(item.get("reason", "")).strip()
+            parts = [p for p in [f"{tr["section"]}: {section}" if section else "", f"{tr["page"]}: {page}" if page else "", f"{tr["chunk"]}: {chunk}" if chunk else "", reason] if p]
+            if parts:
+                lines.append(f"<li>{' | '.join(parts)}</li>")
+        lines.append("</ul>")
+
+    meta_bits = [f"{tr["generated_at"]}: {generated_at}"]
+    if source_hash:
+        meta_bits.append(f"{tr["file_hash"]}: {source_hash}")
+    if tags:
+        meta_bits.append(f"{tr["analysis_tags"]}: {', '.join(tags)}")
+    lines.append(f"<p><em>{' / '.join(meta_bits)}</em></p>")
+
+    lines.append("</div>")
+    lines.append(OC_END)
+    return "\n".join(lines)
+
+
+def upsert_oc_block(existing_html: str, oc_block_html: str) -> str:
+    existing = existing_html or ""
+    pattern = re.compile(re.escape(OC_START) + r".*?" + re.escape(OC_END), re.DOTALL)
+    if pattern.search(existing):
+        return pattern.sub(oc_block_html, existing)
+    if existing.strip():
+        return existing.rstrip() + "\n\n" + oc_block_html
+    return oc_block_html
+
+
+def build_fields(ns: argparse.Namespace, rec: dict[str, Any]) -> list[tuple[str, str]]:
+    # Work on a copy so we can synthesize comments/tags safely.
+    r = dict(rec)
+    bid = str(r.get("id", "")).strip()
     if not bid:
         raise ValueError("missing id")
 
-    fields = []
-    for k, v in rec.items():
+    # analysis -> comments_html
+    analysis = r.get("analysis")
+    if isinstance(analysis, dict):
+        r["comments_html"] = render_analysis_html(bid, analysis, default_lang=ns.lang)
+        if not r.get("analysis_tags"):
+            r["analysis_tags"] = analysis.get("tags", [])
+
+    # comments_html upsert into comments with marker block.
+    if r.get("comments_html"):
+        current = fetch_book(ns, bid, "id,comments") or {}
+        existing_comments = str(current.get("comments") or "")
+        merged = upsert_oc_block(existing_comments, str(r["comments_html"]))
+        r["comments"] = merged
+
+    # tags merge/normalize (multi-tag support)
+    if r.get("tags") is not None or r.get("analysis_tags") is not None:
+        incoming = split_multi(r.get("tags"))
+        extra = split_multi(r.get("analysis_tags"))
+        merge_existing = bool(r.get("tags_merge", True))
+        existing_tags: list[str] = []
+        if merge_existing:
+            current = fetch_book(ns, bid, "id,tags") or {}
+            existing_tags = split_multi(current.get("tags", []))
+        merged = split_multi(existing_tags + incoming + extra)
+        if merged:
+            r["tags"] = merged
+
+    fields: list[tuple[str, str]] = []
+    for k, v in r.items():
         if k == "id":
             continue
         if k not in ALLOWED:
             continue
         if v is None:
             continue
-        fields += ["--field", f"{k}:{to_field_value(v)}"]
+        fields.append((k, to_field_value(v)))
 
     if not fields:
         raise ValueError("no updatable fields")
+    return fields
 
-    return ["calibredb", "set_metadata", bid] + fields + common_args(ns)
+
+def build_set_metadata_cmd(ns: argparse.Namespace, rec: dict[str, Any]) -> list[str]:
+    bid = str(rec.get("id", "")).strip()
+    if not bid:
+        raise ValueError("missing id")
+    fields = build_fields(ns, rec)
+    cmd = ["calibredb", "set_metadata", bid]
+    for k, v in fields:
+        cmd += ["--field", f"{k}:{v}"]
+    cmd += common_args(ns)
+    return cmd
 
 
 def main() -> int:
@@ -63,6 +241,7 @@ def main() -> int:
     ap.add_argument("--username")
     ap.add_argument("--password-env", default="CALIBRE_PASSWORD")
     ap.add_argument("--apply", action="store_true")
+    ap.add_argument("--lang", default="ja", choices=["ja", "en"], help="Default language for generated HTML labels")
     ns = ap.parse_args()
 
     lines = [ln.strip() for ln in sys.stdin.read().splitlines() if ln.strip()]
