@@ -114,6 +114,13 @@ Return full results (not samples):
 - full changed list with `id` + key before/after fields
 - full pending list with `id` + reason
 - full error list with `id` + error summary
+- confidence must be expressed as `high|medium|low`
+
+### Runtime artifact policy
+
+- Keep run-state and temporary artifacts only while a run is active.
+- On successful completion, remove per-run state/artifacts.
+- On failure, keep minimal artifacts only for retry/debug, then clean up after resolution.
 
 ### Internal orchestration (recommended)
 
