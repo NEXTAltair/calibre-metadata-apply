@@ -67,7 +67,8 @@ When publisher/pubdate/journal-like details are missing:
    - web search (CiNii/J-GLOBAL/repository metadata preferred)
 2. Build one merged proposal table with per-field:
    - `candidate`, `source`, `confidence` (`high|medium|low`)
-   - include sort-reading candidates when available:
+   - include reading candidates when available:
+     - `title_reading_candidate` (e.g. katakana reading for proposed title)
      - `title_sort_candidate`
      - `author_sort_candidate`
      - generated using user reading policy (`reading_script`, e.g. katakana)
