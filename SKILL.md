@@ -44,6 +44,15 @@ Always run this sequence before `--apply`:
 
 If target IDs are not explicitly confirmed, stop at dry-run.
 
+## Analysis task execution mode
+
+When metadata suggestion requires heavier analysis (file snippets + web evidence), use `sessions_spawn` to run the analysis worker.
+
+Policy for this skill:
+- Use subagent for analysis candidate generation.
+- Keep final decision/apply in main agent after user confirmation.
+- Turn split is **not required** here; you may wait in the same turn when runtime is short and user requested immediate completion.
+
 ## Supported fields
 
 ### Direct Calibre fields (`set_metadata --field`)
