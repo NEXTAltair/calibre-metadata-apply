@@ -1,34 +1,34 @@
 # calibre-metadata-apply
 
-Apply metadata updates to existing Calibre books via `calibredb` over a Content server.
+`calibredb` を使って、既存Calibre書籍のメタデータを更新するスキルです。
 
-## Setup
+## セットアップ
 
-1. Install Calibre on the machine where this script will run.
-   - Required binary: `calibredb`
-2. Ensure `calibredb` is on `PATH`.
-3. Ensure Calibre Content server is reachable (host/port).
-4. Use `--with-library` in this format:
+1. このスキルを実行する環境にCalibreをインストールする
+   - 必須: `calibredb`
+2. `calibredb` が `PATH` で実行できることを確認する
+3. Calibre Content server に到達できることを確認する
+4. `--with-library` は次の形式で指定する
    - `http://HOST:PORT/#LIBRARY_ID`
-   - Always set explicit `HOST:PORT`; do not rely on localhost defaults.
-5. If auth is enabled, pass:
+   - localhost前提にしない（明示的なHOST:PORTを使う）
+5. 認証が有効な場合は次を指定する
    - `--username <user>`
    - `--password-env <ENV_VAR>`
 
-## Important
+## 重要
 
-OpenClaw being installed is not enough by itself. The runtime executing this skill also needs access to `calibredb`.
+OpenClawが入っているだけでは不十分です。実行環境側に `calibredb` が必要です。
 
-On Windows, metadata writes can fail if the Calibre library path is protected by Microsoft Defender Controlled Folder Access (or equivalent security controls).
-If write calls fail with path/access errors (for example WinError 2/5), add the Calibre library folder and/or Calibre binaries to the allow/exception list.
+WindowsではDefender Controlled Folder Access等の影響で書き込みが失敗する場合があります。
+`WinError 2/5` などのパス/アクセス系エラーが出る場合は、Calibreライブラリフォルダや実行バイナリを許可リストに追加してください。
 
-## Safety model
+## 安全モデル
 
-- JSONL input (one update per line)
-- `id` is required
-- default is dry-run; add `--apply` to execute writes
+- 入力はJSONL（1行=1更新）
+- `id` 必須
+- デフォルトはdry-run（`--apply` 指定時のみ書き込み）
 
-## Quick test (dry-run)
+## クイックテスト（dry-run）
 
 ```bash
 cat references/changes.example.jsonl | python3 scripts/calibredb_apply.py \

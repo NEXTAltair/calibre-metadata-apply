@@ -1,117 +1,88 @@
 ---
 name: calibre-metadata-apply
-description: Apply metadata updates to existing Calibre books via calibredb over a Content server. Use for controlled title rename and series/series_index updates after IDs are confirmed by a read-only lookup.
+description: Apply metadata updates to existing Calibre books via calibredb over a Content server. Use for controlled metadata edits after target IDs are confirmed by a read-only lookup.
 ---
 
 # calibre-metadata-apply
 
-Write metadata changes to existing books in Calibre.
+Calibre既存書籍のメタデータを書き換えるスキル。
 
 ## Requirements
 
-- `calibredb` available on PATH in the runtime where the script is executed.
-  - Practically, this means Calibre must be installed on that runtime (or `calibredb` provided separately).
-- Reachable Calibre Content server URL in `--with-library` format.
-- Do not assume localhost/127.0.0.1.
-  - Always provide an explicit reachable `HOST:PORT` for your network path (for example from WSL to Windows host).
-- If auth is enabled, pass `--username` and `--password-env`.
+- `calibredb` が実行環境のPATH上にあること
+- 到達可能な Calibre Content server URL
+  - `http://HOST:PORT/#LIBRARY_ID`
+- 認証有効時は `--username` + `--password-env`
 
-## Safety model
+## Supported fields
 
-- Input is JSONL, one change per line.
-- Each line must include `id`.
-- Default is dry-run (`--apply` is required to write).
-- Never apply directly from ambiguous title guesses. Confirm target IDs first.
+### Direct fields (`set_metadata --field`)
+- `title`
+- `title_sort`
+- `authors` (string with `&` or array)
+- `author_sort`
+- `series`
+- `series_index`
+- `tags` (string or array)
+- `publisher`
+- `pubdate` (`YYYY-MM-DD`)
+- `languages`
+- `comments`
 
-## Target narrowing + confirmation flow (required)
+### Helper fields
+- `comments_html` (OC marker block upsert)
+- `analysis` (comments用HTML自動生成)
+- `analysis_tags` (tagsへ追加)
+- `tags_merge` (default `true`)
+- `tags_remove` (merge後に指定タグ削除)
 
-Always run this sequence before `--apply`:
+## Required execution flow
 
-1. **Read-only candidate search**
-   - Search by user instruction (title/author/series keywords).
-   - Build candidate list with: `id`, `title`, `authors`, `series`, `series_index`.
-2. **User confirmation gate (mandatory)**
-   - Show candidate list and ask:
-     - Is this list sufficient?
-     - Any missing books to add?
-     - Any extra books to exclude?
-   - Request explicit final target IDs (example: `apply ids: 3,4`).
-3. **Prepare JSONL only for confirmed IDs**
-4. **Dry-run and show planned commands**
-5. **Apply only after explicit user OK**
-6. **Post-apply verification**
-   - Re-read same targets and report final values.
+### A. Target confirmation (mandatory)
+1. read-onlyで候補抽出
+2. `id,title,authors,series,series_index` を提示
+3. ユーザーに最終対象IDを確認
+4. 確定IDだけJSONL化
 
-If target IDs are not explicitly confirmed, stop at dry-run.
-
-## Analysis task execution mode
-
-When metadata suggestion requires heavier analysis (file snippets + web evidence), use `sessions_spawn` to run the analysis worker.
-
-Policy for this skill:
-- **Always** use subagent for analysis candidate generation.
-- Use a lightweight subagent model (user-configured/default subagent model), not the main heavy model.
-- Keep final decision/apply in main agent after user confirmation.
-- Turn split is **not required** here; you may wait in the same turn when runtime is short and user requested immediate completion.
-
-Required orchestration sequence:
-1. Main: collect target IDs and extract source snippets (file/web).
-2. Main: call `sessions_spawn` for analysis synthesis (candidate fields + confidence).
-3. Main: receive subagent result and show proposal to user.
-4. Main: after explicit approval, run dry-run/apply.
-
-PDF text extraction priority (required):
-1. Try `ebook-convert` first.
-2. If extraction is empty/failed, fallback to `pdftotext` (poppler-utils).
-3. If both fail, treat as extraction-failed and switch to web-evidence-first proposal mode.
-
-### Web bibliographic candidate approval flow (required)
-
-When publisher/pubdate/journal-like details are missing:
-
-1. Collect candidates from:
-   - file snippets (head/tail priority)
-   - web search (CiNii/J-GLOBAL/repository metadata preferred)
-2. Build one merged proposal table with per-field:
-   - `candidate`, `source`, `confidence` (`high|medium|low`)
-   - include reading candidates when available:
-     - `title_reading_candidate` (e.g. katakana reading for proposed title)
-     - `title_sort_candidate`
-     - `author_sort_candidate`
-     - generated using user reading policy (`reading_script`, e.g. katakana)
-3. Ask user for explicit approval before apply:
+### B. Proposal synthesis (metadata不足時)
+1. ファイル抽出 + Web候補を集約
+2. 1回の提案表に統合して提示
+   - `candidate`, `source`, `confidence (high|medium|low)`
+   - `title_sort_candidate`, `author_sort_candidate`
+3. ユーザー承認
    - `approve all`
    - `approve only: <fields>`
    - `reject: <fields>`
    - `edit: <field>=<value>`
-4. Apply only approved/finalized fields.
-5. If confidence is low or sources conflict, default to keep empty.
+4. 承認項目のみ反映
+5. 低確信/衝突時は空欄維持を優先
 
-## Supported fields
+### C. Apply
+1. dry-run実行（必須）
+2. ユーザー明示OK後に `--apply`
+3. 再読取で最終値を報告
 
-### Direct Calibre fields (`set_metadata --field`)
+## Analysis worker policy
 
-- `title`
-- `title_sort` (sort key; for JA workflow use configured reading script)
-- `authors` (string with `&` separator or array)
-- `author_sort` (sort key; for JA workflow use configured reading script)
-- `series`
-- `series_index`
-- `tags` (string with `,`/`;` separator or array; deduped)
-- `publisher`
-- `pubdate` (`YYYY-MM-DD`)
-- `languages` (string with `,`/`;` separator or array)
-- `comments`
+- 重めの候補生成は `sessions_spawn` を使う
+- 解析は軽量subagentモデルを使う（main重モデルを避ける）
+- 最終判断/dry-run/applyはmainで実施
+- このスキルではターン分割は必須ではない（短時間なら同一ターン完結可）
 
-### Extended helper fields (tool-side)
+## PDF extraction policy
 
-- `comments_html`: HTML block to upsert into `comments` using marker block:
-  - `<!-- OC_ANALYSIS_START --> ... <!-- OC_ANALYSIS_END -->`
-- `analysis`: structured object to auto-render HTML summary + reread guide into comments.
-  - Language follows `analysis.lang` when provided (`ja`/`en`), otherwise CLI default `--lang` (default: `ja`).
-- `analysis_tags`: extra tags to merge into `tags`.
-- `tags_merge` (default `true`): merge with existing Calibre tags instead of replacing.
-- `tags_remove`: remove specific tags by exact match (applied after merge).
+1. `ebook-convert` を先に試す
+2. 空/失敗時は `pdftotext` にフォールバック
+3. 両方失敗なら web-evidence-first に切替
+
+## Sort reading policy
+
+- 日本語sortはユーザー設定の `reading_script` を使用
+  - `katakana` / `hiragana` / `latin`
+- 初回のみ確認して永続化し、以後は再利用
+- デフォルトはフル読み（省略なし）
+- 保存先: `~/.config/calibre-metadata-apply/config.json`
+  - key: `reading_script`
 
 ## Usage
 
@@ -131,34 +102,8 @@ cat changes.jsonl | python3 skills/calibre-metadata-apply/scripts/calibredb_appl
   --apply
 ```
 
-Example JSONL lines:
+## Do not
 
-```json
-{"id": 123, "title": "New Title", "series": "My Series", "series_index": 4, "tags": ["tech", "to-read"]}
-{"id": 124, "analysis": {"summary": "Chapter 3 design guidance is practical.", "highlights": ["Cache strategy", "Rollback flow"], "reread": [{"section": "Chapter 3", "page": "45-62", "chunk_id": "c3p45", "reason": "Review before implementation"}], "tags": ["reread", "ai-summary"], "file_hash": "sha256:..."}}
-```
-
-## Reading policy for sort fields (`title_sort` / `author_sort`)
-
-When setting Japanese/non-Latin sort values, use a user-configured reading script.
-
-Flow:
-1. On first use, ask user which script to use for reading values:
-   - `katakana` / `hiragana` / `latin`
-2. Persist this preference and reuse it (do not ask every time).
-3. If user updates preference, overwrite stored value and use new one.
-
-Default policy:
-- Use full reading (no truncation) for both `title_sort` and `author_sort`.
-- Only shorten by explicit user request.
-
-Recommended local preference file:
-- `~/.config/calibre-metadata-apply/config.json`
-- key: `reading_script`
-
-Current-session default can follow stored value. If no stored value exists, ask once before writing sort fields.
-
-## Notes
-
-- Run `calibre-catalog-read` first to confirm target IDs.
-- This skill is independent from `calibre-catalog-read` (no runtime import dependency).
+- 曖昧タイトルだけで直接 `--apply` しない
+- 未確認IDを混ぜて適用しない
+- 低確信候補を無断で埋めない
