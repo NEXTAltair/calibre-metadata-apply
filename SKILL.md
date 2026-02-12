@@ -92,6 +92,22 @@ Example JSONL lines:
 {"id": 124, "analysis": {"summary": "Chapter 3 design guidance is practical.", "highlights": ["Cache strategy", "Rollback flow"], "reread": [{"section": "Chapter 3", "page": "45-62", "chunk_id": "c3p45", "reason": "Review before implementation"}], "tags": ["reread", "ai-summary"], "file_hash": "sha256:..."}}
 ```
 
+## Reading policy for sort fields (`title_sort` / `author_sort`)
+
+When setting Japanese/non-Latin sort values, use a user-configured reading script.
+
+Flow:
+1. On first use, ask user which script to use for reading values:
+   - `katakana` / `hiragana` / `latin`
+2. Persist this preference and reuse it (do not ask every time).
+3. If user updates preference, overwrite stored value and use new one.
+
+Recommended local preference file:
+- `~/.config/calibre-metadata-apply/config.json`
+- key: `reading_script`
+
+Current-session default can follow stored value. If no stored value exists, ask once before writing sort fields.
+
 ## Notes
 
 - Run `calibre-catalog-read` first to confirm target IDs.
