@@ -36,6 +36,14 @@ WindowsではDefender Controlled Folder Access等の影響で書き込みが失�
 - `id` 必須
 - デフォルトはdry-run（`--apply` 指定時のみ書き込み）
 
+## ライブラリ横断処理（ターン分割）
+
+長時間処理はターン分割で実行し、チャット継続性を優先します。
+
+- 開始ターン: `sessions_spawn` で軽量subagentに解析を委譲し、`scripts/run_state.py` で実行状態を記録
+- 完了ターン: 完了通知後、`scripts/handle_completion.py` で状態を片付けて結果を提示
+- state保存先: `state/runs.json`
+
 ## クイックテスト（dry-run）
 
 ```bash

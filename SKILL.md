@@ -67,7 +67,25 @@ Calibre既存書籍のメタデータを書き換えるスキル。
 - 重めの候補生成は `sessions_spawn` を使う
 - 解析は軽量subagentモデルを使う（main重モデルを避ける）
 - 最終判断/dry-run/applyはmainで実施
-- このスキルではターン分割は必須ではない（短時間なら同一ターン完結可）
+
+## Long-run turn-split policy (library-wide)
+
+ライブラリ横断の重い処理は、必ずターン分割で実行する。
+
+### Turn 1 (start)
+1. mainで対象範囲を確定
+2. `sessions_spawn` で解析ジョブ起動
+3. `scripts/run_state.py upsert` で `run_id/session_key/task` を保存
+4. ユーザーには「解析開始」を返し、通常チャットを継続
+
+### Turn 2 (completion)
+1. subagent完了通知を受ける
+2. 結果JSONを保存
+3. `scripts/handle_completion.py --run-id ... --result-json ...` で完了処理
+4. mainで提案要約を返す（必要時のみapply）
+
+run state file:
+- `state/runs.json`
 
 ## PDF extraction policy
 
