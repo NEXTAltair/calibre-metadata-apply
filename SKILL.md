@@ -76,7 +76,8 @@ For library-wide heavy processing, always use turn-split execution.
 1. Main defines scope
 2. Main starts analysis via `sessions_spawn`
 3. Save `run_id/session_key/task` via `scripts/run_state.py upsert`
-4. Reply with "analysis started" and keep normal chat responsive
+4. Immediately tell the user this is a subagent job and state the execution model used for analysis (e.g. `moonshotai/kimi-k2.5`)
+5. Reply with "analysis started" and keep normal chat responsive
 
 ### Turn 2 (completion)
 1. Receive subagent completion notice
