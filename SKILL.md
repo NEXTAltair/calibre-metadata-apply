@@ -53,6 +53,11 @@ Policy for this skill:
 - Keep final decision/apply in main agent after user confirmation.
 - Turn split is **not required** here; you may wait in the same turn when runtime is short and user requested immediate completion.
 
+PDF text extraction priority (required):
+1. Try `ebook-convert` first.
+2. If extraction is empty/failed, fallback to `pdftotext` (poppler-utils).
+3. If both fail, treat as extraction-failed and switch to web-evidence-first proposal mode.
+
 ## Supported fields
 
 ### Direct Calibre fields (`set_metadata --field`)
