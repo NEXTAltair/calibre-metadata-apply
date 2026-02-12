@@ -12,7 +12,7 @@ import sys
 from typing import Any
 
 ALLOWED = {
-    "title", "authors", "series", "series_index", "tags", "publisher", "pubdate", "languages", "comments"
+    "title", "title_sort", "authors", "author_sort", "series", "series_index", "tags", "publisher", "pubdate", "languages", "comments"
 }
 
 OC_START = "<!-- OC_ANALYSIS_START -->"

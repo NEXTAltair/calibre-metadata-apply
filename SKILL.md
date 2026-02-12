@@ -49,7 +49,9 @@ If target IDs are not explicitly confirmed, stop at dry-run.
 ### Direct Calibre fields (`set_metadata --field`)
 
 - `title`
+- `title_sort` (sort key; for JA workflow use configured reading script)
 - `authors` (string with `&` separator or array)
+- `author_sort` (sort key; for JA workflow use configured reading script)
 - `series`
 - `series_index`
 - `tags` (string with `,`/`;` separator or array; deduped)
