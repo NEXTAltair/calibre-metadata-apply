@@ -140,6 +140,10 @@ Flow:
 2. Persist this preference and reuse it (do not ask every time).
 3. If user updates preference, overwrite stored value and use new one.
 
+Default policy:
+- Use full reading (no truncation) for both `title_sort` and `author_sort`.
+- Only shorten by explicit user request.
+
 Recommended local preference file:
 - `~/.config/calibre-metadata-apply/config.json`
 - key: `reading_script`
