@@ -49,9 +49,16 @@ If target IDs are not explicitly confirmed, stop at dry-run.
 When metadata suggestion requires heavier analysis (file snippets + web evidence), use `sessions_spawn` to run the analysis worker.
 
 Policy for this skill:
-- Use subagent for analysis candidate generation.
+- **Always** use subagent for analysis candidate generation.
+- Use a lightweight subagent model (user-configured/default subagent model), not the main heavy model.
 - Keep final decision/apply in main agent after user confirmation.
 - Turn split is **not required** here; you may wait in the same turn when runtime is short and user requested immediate completion.
+
+Required orchestration sequence:
+1. Main: collect target IDs and extract source snippets (file/web).
+2. Main: call `sessions_spawn` for analysis synthesis (candidate fields + confidence).
+3. Main: receive subagent result and show proposal to user.
+4. Main: after explicit approval, run dry-run/apply.
 
 PDF text extraction priority (required):
 1. Try `ebook-convert` first.
