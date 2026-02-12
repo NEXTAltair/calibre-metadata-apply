@@ -72,6 +72,36 @@ A skill for updating metadata of existing Calibre books.
 
 For library-wide heavy processing, always use turn-split execution.
 
+## Unknown-document recovery flow (M3)
+
+### User intervention checkpoints (fixed)
+
+1. **Light pass (metadata-only)**
+   - Analyze existing metadata only (no file content read)
+   - Present a table to user:
+     - current file/title
+     - recommended title/metadata
+     - confidence/evidence summary
+   - Wait for user instruction
+
+2. **On user request: page-1 pass**
+   - Read only the first page and refine proposals
+   - Report delta from light pass
+
+3. **If still uncertain: deep pass**
+   - Read first 5 pages + last 5 pages
+   - Add web evidence search
+   - Produce finalized proposal with confidence + rationale
+
+4. **Approval gate**
+   - Show detailed findings and request explicit approval before apply
+
+### Internal orchestration (recommended)
+
+- Use lightweight subagent for all analysis stages
+- Keep apply decisions in main session
+- Persist run state for each stage in `state/runs.json`
+
 ### Turn 1 (start)
 1. Main defines scope
 2. Main starts analysis via `sessions_spawn`
