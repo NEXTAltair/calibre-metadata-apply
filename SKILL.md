@@ -77,12 +77,13 @@ For library-wide heavy processing, always use turn-split execution.
 ### User intervention checkpoints (fixed)
 
 1. **Light pass (metadata-only)**
+   - Always run this stage by default (no extra user instruction required)
    - Analyze existing metadata only (no file content read)
    - Present a table to user:
      - current file/title
      - recommended title/metadata
      - confidence/evidence summary
-   - Wait for user instruction
+   - Stop and wait for user instruction before any deeper stage
 
 2. **On user request: page-1 pass**
    - Read only the first page and refine proposals
