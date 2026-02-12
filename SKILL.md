@@ -74,6 +74,10 @@ For library-wide heavy processing, always use turn-split execution.
 
 ## Unknown-document recovery flow (M3)
 
+Batch sizing rule:
+- Keep each unknown-document batch small enough to show full row-by-row results in chat (no representative sampling).
+- If unresolved items remain, stop and wait for explicit user instruction to start the next batch.
+
 ### User intervention checkpoints (fixed)
 
 1. **Light pass (metadata-only)**
@@ -102,6 +106,14 @@ For library-wide heavy processing, always use turn-split execution.
 - Use `pending-review` tag for unresolved/hold items.
 - If document is unresolved in current flow, do not force metadata guesses.
   - Tag with `pending-review` and keep for follow-up investigation.
+
+### Diff report format (for unknown batch runs)
+
+Return full results (not samples):
+- execution summary (target/changed/pending/skipped/error)
+- full changed list with `id` + key before/after fields
+- full pending list with `id` + reason
+- full error list with `id` + error summary
 
 ### Internal orchestration (recommended)
 
