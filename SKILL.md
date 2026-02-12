@@ -58,6 +58,23 @@ PDF text extraction priority (required):
 2. If extraction is empty/failed, fallback to `pdftotext` (poppler-utils).
 3. If both fail, treat as extraction-failed and switch to web-evidence-first proposal mode.
 
+### Web bibliographic candidate approval flow (required)
+
+When publisher/pubdate/journal-like details are missing:
+
+1. Collect candidates from:
+   - file snippets (head/tail priority)
+   - web search (CiNii/J-GLOBAL/repository metadata preferred)
+2. Build one merged proposal table with per-field:
+   - `candidate`, `source`, `confidence` (`high|medium|low`)
+3. Ask user for explicit approval before apply:
+   - `approve all`
+   - `approve only: <fields>`
+   - `reject: <fields>`
+   - `edit: <field>=<value>`
+4. Apply only approved/finalized fields.
+5. If confidence is low or sources conflict, default to keep empty.
+
 ## Supported fields
 
 ### Direct Calibre fields (`set_metadata --field`)
