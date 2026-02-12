@@ -97,6 +97,14 @@ For library-wide heavy processing, always use turn-split execution.
 4. **Approval gate**
    - Show detailed findings and request explicit approval before apply
 
+### Pending and unsupported handling
+
+- Use `pending-review` tag for unresolved/hold items.
+- If document is image-only / non-text PDF (OCR required), do not force metadata guesses in current flow.
+  - Tag with `pending-review` and keep for OCR-capable future version.
+- If document type is identifiable but a proper user-facing title cannot be confidently generated,
+  keep item as `pending-review` and defer semantic title generation to a future version.
+
 ### Internal orchestration (recommended)
 
 - Use lightweight subagent for all analysis stages
